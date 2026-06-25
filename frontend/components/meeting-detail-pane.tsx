@@ -143,6 +143,8 @@ export function MeetingDetailPane({ meeting, onNotify, onDelete, onUpdate }: Mee
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // Sync canvas resolution to its CSS layout width
+    canvas.width = canvas.offsetWidth || 600;
     let animationId: number;
 
     const draw = () => {
@@ -595,8 +597,8 @@ export function MeetingDetailPane({ meeting, onNotify, onDelete, onUpdate }: Mee
             </div>
           </div>
 
-          <div style={{ marginBottom: "16px" }}>
-            <canvas ref={canvasRef} className="audio-waveform-canvas" width={600} height={48} />
+          <div style={{ marginBottom: "16px", width: "100%" }}>
+            <canvas ref={canvasRef} className="audio-waveform-canvas" height={56} style={{ width: "100%", display: "block" }} />
           </div>
 
           <div className="player-controls" style={{ display: "flex", alignItems: "center", gap: "16px" }}>
