@@ -2,6 +2,7 @@ export type TranscriptLine = {
   id: string;
   speaker: string;
   timestamp: string;
+  startSecond: number;
   text: string;
 };
 
@@ -16,6 +17,7 @@ export type MeetingPreview = {
   actionItems: string[];
   topics: string[];
   transcript: TranscriptLine[];
+  durationSeconds: number;
 };
 
 export type ApiResponse<T> = {

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { meetings as seedMeetings } from "../lib/mock-data";
 import type { MeetingPreview } from "../lib/types";
 import { MeetingCard } from "./meeting-card";
+import { MeetingDetailPane } from "./meeting-detail-pane";
 
 type SortMode = "recent" | "oldest";
 
@@ -57,12 +58,12 @@ export function Dashboard() {
       });
   }, [filter, query, sortMode]);
 
-  const selectedMeeting = visibleMeetings.find((meeting) => meeting.id === selectedId) ?? visibleMeetings[0] ?? seedMeetings[0];
+  const selectedMeeting = visibleMeetings.find((meeting) => meeting.id === selectedId) ?? visibleMeetings[0] ?? null;
 
   const stats = [
     { label: "Meetings", value: seedMeetings.length },
     { label: "Today", value: 2 },
-    { label: "Action items", value: 6 }
+    { label: "Action items", value: 6 },
   ];
 
   return (
@@ -159,74 +160,14 @@ export function Dashboard() {
           </div>
         </aside>
 
-        <section className="detail-panel">
-          {selectedMeeting ? (
-            <>
-              <div className="panel-header">
-                <p className="eyebrow">Selected meeting</p>
-                <h1>{selectedMeeting.title}</h1>
-                <p className="muted">
-                  {selectedMeeting.date} at {selectedMeeting.time} - {selectedMeeting.duration}
-                </p>
-              </div>
-
-              <div className="detail-meta-row">
-                <div>
-                  <span className="meta-label">Participants</span>
-                  <p>{selectedMeeting.participants.join(", ")}</p>
-                </div>
-                <div>
-                  <span className="meta-label">Topics</span>
-                  <p>{selectedMeeting.topics.join(" · ")}</p>
-                </div>
-              </div>
-
-              <div className="hero-note">
-                <strong>Fireflies-style summary preview</strong>
-                <p>{selectedMeeting.summary}</p>
-              </div>
-
-              <div className="detail-grid">
-                <div className="transcript-panel">
-                  <h2>Transcript preview</h2>
-                  {selectedMeeting.transcript.slice(0, 4).map((line) => (
-                    <div key={line.id} className="transcript-line">
-                      <span className="speaker">{line.speaker}</span>
-                      <span className="timestamp">{line.timestamp}</span>
-                      <p>{line.text}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="summary-panel">
-                  <h2>Notes</h2>
-                  <p>{selectedMeeting.summary}</p>
-
-                  <h3>Action items</h3>
-                  <ul>
-                    {selectedMeeting.actionItems.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-
-                  <h3>Topics</h3>
-                  <div className="chip-row">
-                    {selectedMeeting.topics.map((topic) => (
-                      <span key={topic} className="chip">
-                        {topic}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="empty-detail">
-              <strong>No meeting selected</strong>
-              <p>Select a meeting from the library to inspect its transcript and notes.</p>
-            </div>
-          )}
-        </section>
+        {selectedMeeting ? (
+          <MeetingDetailPane meeting={selectedMeeting} />
+        ) : (
+          <section className="detail-panel empty-detail">
+            <strong>No meeting selected</strong>
+            <p>Select a meeting from the library or clear your filters to inspect its transcript and notes.</p>
+          </section>
+        )}
       </section>
     </main>
   );
