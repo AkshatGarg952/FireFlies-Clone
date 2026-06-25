@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { MeetingPreview, TranscriptLine } from "../lib/types";
+import { NotesPanel } from "./notes-panel";
 
 type MeetingDetailPaneProps = {
   meeting: MeetingPreview;
@@ -238,26 +239,7 @@ export function MeetingDetailPane({ meeting }: MeetingDetailPaneProps) {
           </div>
         </div>
 
-        <div className="summary-panel">
-          <h2>Summary</h2>
-          <p>{meeting.summary}</p>
-
-          <h3>Action items</h3>
-          <ul>
-            {meeting.actionItems.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-
-          <h3>Topics</h3>
-          <div className="chip-row">
-            {meeting.topics.map((topic) => (
-              <span key={topic} className="chip">
-                {topic}
-              </span>
-            ))}
-          </div>
-        </div>
+        <NotesPanel meeting={meeting} />
       </div>
     </section>
   );

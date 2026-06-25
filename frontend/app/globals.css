@@ -459,11 +459,130 @@ body {
 }
 
 .transcript-panel,
-.summary-panel {
+.summary-panel,
+.notes-panel {
   border: 1px solid var(--line);
   border-radius: 20px;
   padding: 18px;
   background: rgba(255, 255, 255, 0.03);
+}
+
+.notes-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.notes-section {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+}
+
+.notes-section:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.notes-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.notes-section-head h2 {
+  margin: 0;
+}
+
+.status-pill {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.summary-copy {
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
+.summary-bullets,
+.action-list,
+.chapter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.summary-bullet {
+  display: grid;
+  grid-template-columns: 8px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.summary-bullet span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 8px;
+  background: var(--accent-2);
+}
+
+.summary-bullet p {
+  margin: 0;
+}
+
+.action-row {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  cursor: pointer;
+}
+
+.action-row input {
+  margin-top: 3px;
+  accent-color: var(--accent-2);
+}
+
+.action-row strong,
+.action-row small {
+  display: block;
+}
+
+.action-row small {
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.chapter-row {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text);
+  cursor: pointer;
+  padding: 11px 12px;
+  text-align: left;
+}
+
+.chapter-row:hover {
+  border-color: rgba(139, 156, 255, 0.45);
+}
+
+.chapter-row span {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .transcript-line {

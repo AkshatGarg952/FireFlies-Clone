@@ -10,8 +10,23 @@ export const meetings: MeetingPreview[] = [
     durationSeconds: 2520,
     participants: ["Aditi", "Rahul", "Meera"],
     summary: "The team aligned on launch readiness, timeline risks, and the final marketing checklist.",
-    actionItems: ["Finalize landing page copy", "Confirm launch owner", "Review launch deck"],
+    summaryBullets: [
+      "Launch readiness is on track, with engineering work already complete.",
+      "The final checklist and launch deck still need review before sign-off.",
+      "Marketing copy will be updated and shared today."
+    ],
+    actionItems: [
+      { id: "m1-a1", title: "Finalize landing page copy", assignee: "Meera", completed: false },
+      { id: "m1-a2", title: "Confirm launch owner", assignee: "Aditi", completed: false },
+      { id: "m1-a3", title: "Review launch deck", assignee: "Rahul", completed: true }
+    ],
     topics: ["Launch", "Timeline", "Marketing"],
+    chapters: [
+      { label: "Launch readiness", time: "00:08" },
+      { label: "Checklist blockers", time: "00:21" },
+      { label: "Marketing follow-up", time: "00:34" },
+      { label: "Ownership decision", time: "00:49" }
+    ],
     transcript: [
       { id: "l1", speaker: "Aditi", timestamp: "00:08", startSecond: 8, text: "Let's review where we are on launch readiness." },
       { id: "l2", speaker: "Rahul", timestamp: "00:21", startSecond: 21, text: "Engineering is done, but we still need the final checklist." },
@@ -29,8 +44,22 @@ export const meetings: MeetingPreview[] = [
     durationSeconds: 1860,
     participants: ["Aman", "Nisha", "Karan"],
     summary: "Product and design aligned on the next sprint goals and the open UX cleanup items.",
-    actionItems: ["Refine onboarding flow", "Collect customer feedback", "Ship updated prototype"],
+    summaryBullets: [
+      "The onboarding feedback loop is the main product priority.",
+      "The updated UX layout is ready for team review.",
+      "The next sprint should stay narrow so the prototype can ship."
+    ],
+    actionItems: [
+      { id: "m2-a1", title: "Refine onboarding flow", assignee: "Nisha", completed: false },
+      { id: "m2-a2", title: "Collect customer feedback", assignee: "Aman", completed: false },
+      { id: "m2-a3", title: "Ship updated prototype", assignee: "Karan", completed: false }
+    ],
     topics: ["Product", "UX", "Sprint"],
+    chapters: [
+      { label: "Onboarding feedback", time: "00:10" },
+      { label: "Layout review", time: "00:24" },
+      { label: "Sprint scope", time: "00:39" }
+    ],
     transcript: [
       { id: "l1", speaker: "Aman", timestamp: "00:10", startSecond: 10, text: "We need to close the onboarding feedback loop." },
       { id: "l2", speaker: "Nisha", timestamp: "00:24", startSecond: 24, text: "The new layout is ready for review." },

@@ -14,8 +14,18 @@ export type MeetingPreview = {
   duration: string;
   participants: string[];
   summary: string;
-  actionItems: string[];
+  summaryBullets: string[];
+  actionItems: Array<{
+    id: string;
+    title: string;
+    assignee?: string;
+    completed: boolean;
+  }>;
   topics: string[];
+  chapters: Array<{
+    label: string;
+    time: string;
+  }>;
   transcript: TranscriptLine[];
   durationSeconds: number;
 };

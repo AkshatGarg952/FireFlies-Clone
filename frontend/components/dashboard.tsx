@@ -63,7 +63,7 @@ export function Dashboard() {
   const stats = [
     { label: "Meetings", value: seedMeetings.length },
     { label: "Today", value: 2 },
-    { label: "Action items", value: 6 },
+    { label: "Action items", value: seedMeetings.reduce((total, meeting) => total + meeting.actionItems.length, 0) },
   ];
 
   return (
