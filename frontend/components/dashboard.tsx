@@ -143,7 +143,7 @@ export function Dashboard() {
       if (filter === "team") params.append("participant", "Aman");
       params.append("sort", sortMode);
 
-      const res = await fetch(`http://localhost:8000/api/meetings?${params.toString()}`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch meetings");
       const data = await res.json();
       setMeetings(data);
@@ -168,7 +168,7 @@ export function Dashboard() {
     const fetchDetail = async () => {
       setSelectedMeetingLoading(true);
       try {
-        const res = await fetch(`http://localhost:8000/api/meetings/${selectedId}`);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${selectedId}`);
         if (!res.ok) throw new Error("Failed to load meeting details");
         const data = await res.json();
         setSelectedMeeting(data);
@@ -199,7 +199,7 @@ export function Dashboard() {
 
     try {
       showToast("Uploading and parsing transcript...");
-      const res = await fetch("http://localhost:8000/api/meetings/upload", {
+      const res = await fetch("${process.env.NEXT_PUBLIC_API_URL}/api/meetings/upload", {
         method: "POST",
         body: formData,
       });
@@ -247,7 +247,7 @@ export function Dashboard() {
         action_items: [],
       };
 
-      const res = await fetch("http://localhost:8000/api/meetings", {
+      const res = await fetch("${process.env.NEXT_PUBLIC_API_URL}/api/meetings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

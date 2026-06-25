@@ -31,7 +31,7 @@ export function NotesPanel({ meeting, onUpdate, seekTo }: NotesPanelProps) {
 
   const handleActionToggle = async (actionId: number, isCompleted: boolean) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/action-items/${actionId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/action-items/${actionId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_completed: isCompleted }),
@@ -49,7 +49,7 @@ export function NotesPanel({ meeting, onUpdate, seekTo }: NotesPanelProps) {
     if (!newActionTitle.trim()) return;
 
     try {
-      const res = await fetch(`http://localhost:8000/api/meetings/${meeting.id}/action-items`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meeting.id}/action-items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -70,7 +70,7 @@ export function NotesPanel({ meeting, onUpdate, seekTo }: NotesPanelProps) {
 
   const handleDeleteActionItem = async (actionId: number) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/action-items/${actionId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/action-items/${actionId}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -87,7 +87,7 @@ export function NotesPanel({ meeting, onUpdate, seekTo }: NotesPanelProps) {
 
     const updatedDecisions = [...(meeting.key_decisions || []), newDecision.trim()];
     try {
-      const res = await fetch(`http://localhost:8000/api/meetings/${meeting.id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meeting.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ key_decisions: updatedDecisions }),
@@ -104,7 +104,7 @@ export function NotesPanel({ meeting, onUpdate, seekTo }: NotesPanelProps) {
   const handleDeleteDecision = async (indexToDelete: number) => {
     const updatedDecisions = (meeting.key_decisions || []).filter((_: any, idx: number) => idx !== indexToDelete);
     try {
-      const res = await fetch(`http://localhost:8000/api/meetings/${meeting.id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meeting.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ key_decisions: updatedDecisions }),
@@ -123,7 +123,7 @@ export function NotesPanel({ meeting, onUpdate, seekTo }: NotesPanelProps) {
 
     const updatedTags = [...(meeting.tags || []), newTag.trim()];
     try {
-      const res = await fetch(`http://localhost:8000/api/meetings/${meeting.id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meeting.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tags: updatedTags }),
@@ -140,7 +140,7 @@ export function NotesPanel({ meeting, onUpdate, seekTo }: NotesPanelProps) {
   const handleDeleteTag = async (tagToDelete: string) => {
     const updatedTags = (meeting.tags || []).filter((t: string) => t !== tagToDelete);
     try {
-      const res = await fetch(`http://localhost:8000/api/meetings/${meeting.id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meeting.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tags: updatedTags }),

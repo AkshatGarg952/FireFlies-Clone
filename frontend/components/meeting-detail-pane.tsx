@@ -253,7 +253,7 @@ export function MeetingDetailPane({ meeting, onNotify, onDelete, onUpdate }: Mee
   const handleSaveTitle = async () => {
     if (!editedTitle.trim()) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/meetings/${meeting.id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meeting.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: editedTitle.trim() }),
@@ -271,7 +271,7 @@ export function MeetingDetailPane({ meeting, onNotify, onDelete, onUpdate }: Mee
   const handleSavePeople = async () => {
     const list = editedPeople.split(",").map((p: string) => p.trim()).filter(Boolean);
     try {
-      const res = await fetch(`http://localhost:8000/api/meetings/${meeting.id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meeting.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ participants: list }),
@@ -289,7 +289,7 @@ export function MeetingDetailPane({ meeting, onNotify, onDelete, onUpdate }: Mee
   // Highlights Toggle
   const handleToggleHighlight = async (lineId: number) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/meetings/${meeting.id}/highlights/toggle?transcript_line_id=${lineId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meeting.id}/highlights/toggle?transcript_line_id=${lineId}`, {
         method: "POST",
       });
       if (res.ok) {
@@ -306,7 +306,7 @@ export function MeetingDetailPane({ meeting, onNotify, onDelete, onUpdate }: Mee
   const handleAddComment = async (lineId: number) => {
     if (!newCommentText.trim()) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/meetings/${meeting.id}/comments`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meeting.id}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -329,7 +329,7 @@ export function MeetingDetailPane({ meeting, onNotify, onDelete, onUpdate }: Mee
   const handleUpdateComment = async (commentId: number) => {
     if (!editingCommentText.trim()) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/comments/${commentId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/comments/${commentId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: editingCommentText.trim() }),
@@ -347,7 +347,7 @@ export function MeetingDetailPane({ meeting, onNotify, onDelete, onUpdate }: Mee
 
   const handleDeleteComment = async (commentId: number) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/comments/${commentId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/comments/${commentId}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -366,7 +366,7 @@ export function MeetingDetailPane({ meeting, onNotify, onDelete, onUpdate }: Mee
       return;
     }
     try {
-      const res = await fetch(`http://localhost:8000/api/meetings/${meeting.id}/soundbites`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meeting.id}/soundbites`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -387,7 +387,7 @@ export function MeetingDetailPane({ meeting, onNotify, onDelete, onUpdate }: Mee
 
   const handleDeleteSoundbite = async (soundbiteId: number) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/soundbites/${soundbiteId}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/soundbites/${soundbiteId}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -411,7 +411,7 @@ export function MeetingDetailPane({ meeting, onNotify, onDelete, onUpdate }: Mee
     setIsAsking(true);
 
     try {
-      const res = await fetch(`http://localhost:8000/api/meetings/${meeting.id}/ask`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meeting.id}/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: userMsg }),
@@ -456,7 +456,7 @@ export function MeetingDetailPane({ meeting, onNotify, onDelete, onUpdate }: Mee
   const handleDeleteMeeting = async () => {
     if (!confirm("Are you sure you want to permanently delete this meeting?")) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/meetings/${meeting.id}`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/meetings/${meeting.id}`, {
         method: "DELETE",
       });
       if (res.ok) {
