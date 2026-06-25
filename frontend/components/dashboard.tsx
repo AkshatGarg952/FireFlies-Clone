@@ -85,9 +85,12 @@ export function Dashboard() {
   return (
     <main className="workspace-shell">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">Fireflies workspace</p>
-          <h1>Meetings</h1>
+        <div className="brand-lockup">
+          <span className="brand-mark">F</span>
+          <div>
+            <p className="eyebrow">Fireflies workspace</p>
+            <h1>Meetings</h1>
+          </div>
         </div>
         <div className="topbar-actions">
           <button className="ghost-button" type="button" onClick={() => setIsSettingsOpen(true)}>
