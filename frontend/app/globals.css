@@ -35,6 +35,233 @@ body {
   padding: 24px;
 }
 
+.workspace-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: calc(100vh - 48px);
+}
+
+.topbar,
+.hero-strip,
+.content-grid {
+  width: 100%;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 8px;
+}
+
+.topbar h1 {
+  margin: 4px 0 0;
+  font-size: clamp(32px, 4vw, 44px);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ghost-button,
+.primary-button,
+.filter-chip,
+.meeting-button {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ghost-button,
+.filter-chip {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ghost-button,
+.primary-button {
+  padding: 12px 16px;
+}
+
+.primary-button {
+  background: linear-gradient(135deg, rgba(139, 156, 255, 0.9), rgba(94, 234, 212, 0.65));
+  color: #08101f;
+  font-weight: 700;
+}
+
+.profile-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+}
+
+.profile-pill span {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-weight: 700;
+  background: linear-gradient(135deg, rgba(139, 156, 255, 0.9), rgba(94, 234, 212, 0.7));
+  color: #08101f;
+}
+
+.profile-pill p,
+.profile-pill strong {
+  margin: 0;
+}
+
+.profile-pill p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hero-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.stat-card {
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.stat-card p {
+  margin: 0 0 6px;
+  color: var(--muted);
+}
+
+.stat-card strong {
+  font-size: 28px;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: 390px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.library-panel {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 18px;
+  background: rgba(18, 26, 49, 0.86);
+  backdrop-filter: blur(18px);
+}
+
+.panel-head,
+.detail-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-head h2 {
+  margin: 0;
+}
+
+.search-field {
+  display: block;
+  margin-top: 16px;
+}
+
+.search-field span,
+.meta-label,
+.eyebrow {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.search-field input {
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.filter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.filter-chip.active,
+.meeting-card.active,
+.meeting-button:hover .meeting-card {
+  border-color: rgba(139, 156, 255, 0.45);
+  background: linear-gradient(135deg, rgba(139, 156, 255, 0.14), rgba(255, 255, 255, 0.04));
+}
+
+.meeting-list {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.meeting-button {
+  padding: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.meeting-button:hover {
+  transform: translateY(-1px);
+}
+
+.meeting-card {
+  margin: 0;
+  padding: 16px;
+}
+
+.meeting-card p {
+  margin-bottom: 0;
+}
+
+.detail-panel {
+  min-height: 100%;
+}
+
+.hero-note,
+.empty-state,
+.empty-detail {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.hero-note strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.empty-state p,
+.empty-detail p,
+.hero-note p {
+  margin-bottom: 0;
+}
 .app-shell {
   display: grid;
   grid-template-columns: 360px minmax(0, 1fr);
@@ -199,8 +426,16 @@ body {
 }
 
 @media (max-width: 1080px) {
-  .app-shell,
-  .detail-grid {
+  .content-grid,
+  .detail-grid,
+  .hero-strip {
     grid-template-columns: 1fr;
+  }
+
+  .topbar,
+  .panel-head,
+  .detail-meta-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
