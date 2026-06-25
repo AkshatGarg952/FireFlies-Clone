@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import date
 from typing import Any
+import re
 
 from fastapi import HTTPException
 
@@ -17,6 +19,12 @@ from app.schemas import (
     MeetingUpdate,
     TranscriptLineCreate,
     TranscriptLineRead,
+    ChapterCreate,
+    ChapterRead,
+    CommentCreate,
+    CommentRead,
+    SoundbiteCreate,
+    SoundbiteRead,
 )
 
 
@@ -25,7 +33,7 @@ def bootstrap_database() -> None:
     seed_database()
 
 
-def _row_to_meeting_list_item(row: sqlite3.Row) -> MeetingListItem:
+def _row_to_meeting_list_item(row: sqlite3.Row, tags: list[str]) -> MeetingListItem:
     participant_text = row["participants"] or ""
     participants = [name.strip() for name in participant_text.split(",") if name.strip()]
     return MeetingListItem(
@@ -36,7 +44,20 @@ def _row_to_meeting_list_item(row: sqlite3.Row) -> MeetingListItem:
         participants=participants,
         source_type=row["source_type"],
         source_filename=row["source_filename"],
+        tags=tags,
     )
+
+
+def _get_summary_fields(summary_text_raw: str | None) -> tuple[str, list[str]]:
+    if not summary_text_raw:
+        return "", []
+    try:
+        data = json.loads(summary_text_raw)
+        if isinstance(data, dict):
+            return data.get("summary_text", ""), data.get("bullets", [])
+    except Exception:
+        pass
+    return summary_text_raw, []
 
 
 def _build_meeting_detail(meeting_row: sqlite3.Row) -> MeetingDetail:
@@ -85,6 +106,8 @@ def _build_meeting_detail(meeting_row: sqlite3.Row) -> MeetingDetail:
             (meeting_id,),
         ).fetchone()
 
+        summary_text, summary_bullets = _get_summary_fields(summary_row["summary_text"] if summary_row else None)
+
         action_items = [
             ActionItemRead(
                 id=row["id"],
@@ -113,6 +136,76 @@ def _build_meeting_detail(meeting_row: sqlite3.Row) -> MeetingDetail:
             ).fetchall()
         ]
 
+        key_decisions = [
+            row["text"]
+            for row in connection.execute(
+                "SELECT text FROM key_decisions WHERE meeting_id = ? ORDER BY sort_order, id",
+                (meeting_id,),
+            ).fetchall()
+        ]
+
+        chapters = [
+            ChapterRead(
+                id=row["id"],
+                label=row["label"],
+                time=row["time"]
+            )
+            for row in connection.execute(
+                "SELECT id, label, time FROM chapters WHERE meeting_id = ? ORDER BY sort_order, id",
+                (meeting_id,),
+            ).fetchall()
+        ]
+
+        comments = [
+            CommentRead(
+                id=row["id"],
+                meeting_id=row["meeting_id"],
+                transcript_line_id=row["transcript_line_id"],
+                text=row["text"],
+                created_at=row["created_at"]
+            )
+            for row in connection.execute(
+                "SELECT id, meeting_id, transcript_line_id, text, created_at FROM comments WHERE meeting_id = ? ORDER BY id",
+                (meeting_id,),
+            ).fetchall()
+        ]
+
+        highlights = [
+            row["transcript_line_id"]
+            for row in connection.execute(
+                "SELECT transcript_line_id FROM highlights WHERE meeting_id = ?",
+                (meeting_id,),
+            ).fetchall()
+        ]
+
+        soundbites = [
+            SoundbiteRead(
+                id=row["id"],
+                meeting_id=row["meeting_id"],
+                title=row["title"],
+                start_second=row["start_second"],
+                end_second=row["end_second"],
+                created_at=row["created_at"]
+            )
+            for row in connection.execute(
+                "SELECT id, meeting_id, title, start_second, end_second, created_at FROM soundbites WHERE meeting_id = ? ORDER BY id",
+                (meeting_id,),
+            ).fetchall()
+        ]
+
+        tags = [
+            row["name"]
+            for row in connection.execute(
+                """
+                SELECT t.name
+                FROM tags t
+                JOIN meeting_tags mt ON mt.tag_id = t.id
+                WHERE mt.meeting_id = ?
+                """,
+                (meeting_id,),
+            ).fetchall()
+        ]
+
     return MeetingDetail(
         id=meeting_row["id"],
         title=meeting_row["title"],
@@ -123,9 +216,16 @@ def _build_meeting_detail(meeting_row: sqlite3.Row) -> MeetingDetail:
         source_filename=meeting_row["source_filename"],
         transcript_text=transcript_text,
         transcript_lines=transcript_lines,
-        summary_text=summary_row["summary_text"] if summary_row else None,
+        summary_text=summary_text,
+        summary_bullets=summary_bullets,
+        key_decisions=key_decisions,
         action_items=action_items,
         topics=topics,
+        tags=tags,
+        chapters=chapters,
+        comments=comments,
+        highlights=highlights,
+        soundbites=soundbites,
     )
 
 
@@ -160,11 +260,17 @@ def list_meetings(
                     FROM meeting_participants mp2
                     WHERE mp2.meeting_id = m.id AND LOWER(mp2.name) LIKE ?
                 )
+                OR EXISTS (
+                    SELECT 1
+                    FROM transcripts t
+                    LEFT JOIN transcript_lines tl ON tl.transcript_id = t.id
+                    WHERE t.meeting_id = m.id AND LOWER(tl.text) LIKE ?
+                )
             )
             """
         )
         like = f"%{query.lower()}%"
-        params.extend([like, like])
+        params.extend([like, like, like])
 
     if participant:
         clauses.append(
@@ -193,7 +299,23 @@ def list_meetings(
 
     with get_connection() as connection:
         rows = connection.execute(sql, params).fetchall()
-        return [_row_to_meeting_list_item(row) for row in rows]
+        items = []
+        for row in rows:
+            meeting_id = row["id"]
+            tags = [
+                r["name"]
+                for r in connection.execute(
+                    """
+                    SELECT t.name
+                    FROM tags t
+                    JOIN meeting_tags mt ON mt.tag_id = t.id
+                    WHERE mt.meeting_id = ?
+                    """,
+                    (meeting_id,),
+                ).fetchall()
+            ]
+            items.append(_row_to_meeting_list_item(row, tags))
+        return items
 
 
 def get_meeting(meeting_id: int) -> MeetingDetail | None:
@@ -216,27 +338,72 @@ def get_meeting(meeting_id: int) -> MeetingDetail | None:
 def _replace_participants(connection: sqlite3.Connection, meeting_id: int, participants: list[str]) -> None:
     connection.execute("DELETE FROM meeting_participants WHERE meeting_id = ?", (meeting_id,))
     for name in participants:
-        connection.execute(
-            "INSERT INTO meeting_participants (meeting_id, name, role) VALUES (?, ?, ?)",
-            (meeting_id, name, None),
-        )
+        if name.strip():
+            connection.execute(
+                "INSERT INTO meeting_participants (meeting_id, name, role) VALUES (?, ?, ?)",
+                (meeting_id, name.strip(), None),
+            )
 
 
 def _replace_topics(connection: sqlite3.Connection, meeting_id: int, topics: list[str]) -> None:
     connection.execute("DELETE FROM topics WHERE meeting_id = ?", (meeting_id,))
     for sort_order, topic in enumerate(topics):
+        if topic.strip():
+            connection.execute(
+                "INSERT INTO topics (meeting_id, name, sort_order) VALUES (?, ?, ?)",
+                (meeting_id, topic.strip(), sort_order),
+            )
+
+
+def _replace_tags(connection: sqlite3.Connection, meeting_id: int, tags: list[str]) -> None:
+    connection.execute("DELETE FROM meeting_tags WHERE meeting_id = ?", (meeting_id,))
+    for tag_name in tags:
+        tag_name = tag_name.strip()
+        if not tag_name:
+            continue
+        connection.execute("INSERT OR IGNORE INTO tags (name) VALUES (?)", (tag_name,))
+        tag_row = connection.execute("SELECT id FROM tags WHERE name = ?", (tag_name,)).fetchone()
+        if tag_row:
+            connection.execute(
+                "INSERT OR IGNORE INTO meeting_tags (meeting_id, tag_id) VALUES (?, ?)",
+                (meeting_id, tag_row["id"]),
+            )
+
+
+def _replace_key_decisions(connection: sqlite3.Connection, meeting_id: int, key_decisions: list[str]) -> None:
+    connection.execute("DELETE FROM key_decisions WHERE meeting_id = ?", (meeting_id,))
+    for sort_order, text in enumerate(key_decisions):
+        if text.strip():
+            connection.execute(
+                "INSERT INTO key_decisions (meeting_id, text, sort_order) VALUES (?, ?, ?)",
+                (meeting_id, text.strip(), sort_order),
+            )
+
+
+def _replace_chapters(connection: sqlite3.Connection, meeting_id: int, chapters: list[ChapterCreate]) -> None:
+    connection.execute("DELETE FROM chapters WHERE meeting_id = ?", (meeting_id,))
+    for sort_order, chapter in enumerate(chapters):
         connection.execute(
-            "INSERT INTO topics (meeting_id, name, sort_order) VALUES (?, ?, ?)",
-            (meeting_id, topic, sort_order),
+            "INSERT INTO chapters (meeting_id, label, time, sort_order) VALUES (?, ?, ?, ?)",
+            (meeting_id, chapter.label, chapter.time, sort_order),
         )
 
 
-def _replace_summary(connection: sqlite3.Connection, meeting_id: int, summary_text: str | None) -> None:
+def _replace_summary(
+    connection: sqlite3.Connection,
+    meeting_id: int,
+    summary_text: str | None,
+    summary_bullets: list[str] | None = None
+) -> None:
     connection.execute("DELETE FROM summaries WHERE meeting_id = ?", (meeting_id,))
-    if summary_text:
+    if summary_text or summary_bullets:
+        data = {
+            "summary_text": summary_text or "",
+            "bullets": summary_bullets or []
+        }
         connection.execute(
             "INSERT INTO summaries (meeting_id, summary_text, created_by) VALUES (?, ?, ?)",
-            (meeting_id, summary_text, "system"),
+            (meeting_id, json.dumps(data), "system"),
         )
 
 
@@ -323,8 +490,11 @@ def create_meeting(payload: MeetingCreate) -> MeetingDetail:
         )
         meeting_id = meeting_cursor.lastrowid
         _replace_participants(connection, meeting_id, payload.participants)
-        _replace_summary(connection, meeting_id, payload.summary_text)
+        _replace_summary(connection, meeting_id, payload.summary_text, payload.summary_bullets)
+        _replace_key_decisions(connection, meeting_id, payload.key_decisions)
         _replace_topics(connection, meeting_id, payload.topics)
+        _replace_tags(connection, meeting_id, payload.tags)
+        _replace_chapters(connection, meeting_id, payload.chapters)
         _replace_transcript(connection, meeting_id, payload.transcript_text, payload.transcript_lines)
         _insert_action_items(connection, meeting_id, payload.action_items)
 
@@ -370,8 +540,18 @@ def update_meeting(meeting_id: int, payload: MeetingUpdate) -> MeetingDetail:
             _replace_participants(connection, meeting_id, payload.participants)
         if payload.topics is not None:
             _replace_topics(connection, meeting_id, payload.topics)
-        if payload.summary_text is not None:
-            _replace_summary(connection, meeting_id, payload.summary_text)
+        if payload.tags is not None:
+            _replace_tags(connection, meeting_id, payload.tags)
+        if payload.chapters is not None:
+            _replace_chapters(connection, meeting_id, payload.chapters)
+        if payload.key_decisions is not None:
+            _replace_key_decisions(connection, meeting_id, payload.key_decisions)
+
+        if payload.summary_text is not None or payload.summary_bullets is not None:
+            summary_text = payload.summary_text if payload.summary_text is not None else existing.summary_text
+            summary_bullets = payload.summary_bullets if payload.summary_bullets is not None else existing.summary_bullets
+            _replace_summary(connection, meeting_id, summary_text, summary_bullets)
+
         if payload.transcript_text is not None or payload.transcript_lines is not None:
             transcript_text = payload.transcript_text if payload.transcript_text is not None else existing.transcript_text
             transcript_lines = payload.transcript_lines
@@ -397,6 +577,449 @@ def delete_meeting(meeting_id: int) -> None:
             raise HTTPException(status_code=404, detail="Meeting not found")
 
 
+# --- COMMENTS SERVICE ---
+def add_comment(meeting_id: int, payload: CommentCreate) -> CommentRead:
+    if get_meeting(meeting_id) is None:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    with get_connection() as connection:
+        cursor = connection.execute(
+            "INSERT INTO comments (meeting_id, transcript_line_id, text) VALUES (?, ?, ?)",
+            (meeting_id, payload.transcript_line_id, payload.text),
+        )
+        comment_id = cursor.lastrowid
+        row = connection.execute(
+            "SELECT created_at FROM comments WHERE id = ?", (comment_id,)
+        ).fetchone()
+
+    return CommentRead(
+        id=comment_id,
+        meeting_id=meeting_id,
+        transcript_line_id=payload.transcript_line_id,
+        text=payload.text,
+        created_at=row["created_at"],
+    )
+
+
+def update_comment(comment_id: int, text: str) -> CommentRead:
+    with get_connection() as connection:
+        row = connection.execute(
+            "SELECT id, meeting_id, transcript_line_id, text, created_at FROM comments WHERE id = ?",
+            (comment_id,),
+        ).fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Comment not found")
+
+        connection.execute(
+            "UPDATE comments SET text = ? WHERE id = ?",
+            (text, comment_id),
+        )
+
+    return CommentRead(
+        id=row["id"],
+        meeting_id=row["meeting_id"],
+        transcript_line_id=row["transcript_line_id"],
+        text=text,
+        created_at=row["created_at"],
+    )
+
+
+def delete_comment(comment_id: int) -> None:
+    with get_connection() as connection:
+        res = connection.execute("DELETE FROM comments WHERE id = ?", (comment_id,))
+        if res.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Comment not found")
+
+
+# --- HIGHLIGHTS SERVICE ---
+def toggle_highlight(meeting_id: int, transcript_line_id: int) -> bool:
+    if get_meeting(meeting_id) is None:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    with get_connection() as connection:
+        existing = connection.execute(
+            "SELECT 1 FROM highlights WHERE meeting_id = ? AND transcript_line_id = ?",
+            (meeting_id, transcript_line_id),
+        ).fetchone()
+
+        if existing:
+            connection.execute(
+                "DELETE FROM highlights WHERE meeting_id = ? AND transcript_line_id = ?",
+                (meeting_id, transcript_line_id),
+            )
+            return False
+        else:
+            connection.execute(
+                "INSERT INTO highlights (meeting_id, transcript_line_id) VALUES (?, ?)",
+                (meeting_id, transcript_line_id),
+            )
+            return True
+
+
+# --- SOUNDBITES SERVICE ---
+def add_soundbite(meeting_id: int, payload: SoundbiteCreate) -> SoundbiteRead:
+    if get_meeting(meeting_id) is None:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    with get_connection() as connection:
+        cursor = connection.execute(
+            "INSERT INTO soundbites (meeting_id, title, start_second, end_second) VALUES (?, ?, ?, ?)",
+            (meeting_id, payload.title, payload.start_second, payload.end_second),
+        )
+        sb_id = cursor.lastrowid
+        row = connection.execute(
+            "SELECT created_at FROM soundbites WHERE id = ?", (sb_id,)
+        ).fetchone()
+
+    return SoundbiteRead(
+        id=sb_id,
+        meeting_id=meeting_id,
+        title=payload.title,
+        start_second=payload.start_second,
+        end_second=payload.end_second,
+        created_at=row["created_at"]
+    )
+
+
+def delete_soundbite(soundbite_id: int) -> None:
+    with get_connection() as connection:
+        res = connection.execute("DELETE FROM soundbites WHERE id = ?", (soundbite_id,))
+        if res.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Soundbite not found")
+
+
+# --- ANALYTICS SERVICE ---
+def get_analytics(meeting_id: int) -> dict:
+    meeting = get_meeting(meeting_id)
+    if meeting is None:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    word_count = 0
+    if meeting.transcript_lines:
+        word_count = sum(len(line.text.split()) for line in meeting.transcript_lines)
+    elif meeting.transcript_text:
+        word_count = len(meeting.transcript_text.split())
+
+    speaker_durations = {}
+    total_talk_time = 0
+    for line in meeting.transcript_lines:
+        dur = max(1, line.end_second - line.start_second)
+        speaker_durations[line.speaker_name] = speaker_durations.get(line.speaker_name, 0) + dur
+        total_talk_time += dur
+
+    speaker_stats = []
+    for speaker, duration in speaker_durations.items():
+        pct = round((duration / total_talk_time) * 100, 1) if total_talk_time > 0 else 0
+        speaker_stats.append({
+            "speaker": speaker,
+            "duration_seconds": duration,
+            "percentage": pct
+        })
+
+    num_actions = len(meeting.action_items)
+    completed_actions = sum(1 for item in meeting.action_items if item.is_completed)
+
+    return {
+        "word_count": word_count,
+        "speaker_talk_times": speaker_stats,
+        "total_action_items": num_actions,
+        "completed_action_items": completed_actions,
+        "duration_seconds": meeting.duration_seconds
+    }
+
+
+# --- ASSISTANT Q&A CHAT SERVICE ---
+def ask_meeting_question(meeting_id: int, question: str) -> str:
+    meeting = get_meeting(meeting_id)
+    if meeting is None:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    q_lower = question.lower()
+
+    if "action" in q_lower or "task" in q_lower or "todo" in q_lower:
+        if not meeting.action_items:
+            return "Based on the transcript, there are no action items listed for this meeting."
+        actions_str = ", ".join([f"'{item.title}' (assigned to {item.assignee_name or 'unassigned'})" for item in meeting.action_items])
+        return f"Here are the action items identified in this meeting: {actions_str}."
+
+    if "decision" in q_lower or "decided" in q_lower or "conclude" in q_lower:
+        if meeting.key_decisions:
+            decisions_str = "; ".join(meeting.key_decisions)
+            return f"The following decisions were made during the meeting: {decisions_str}."
+        decisions = []
+        for line in meeting.transcript_lines:
+            if "decide" in line.text.lower() or "agree" in line.text.lower() or "we will" in line.text.lower():
+                decisions.append(f"\"{line.text}\" ({line.speaker_name})")
+        if decisions:
+            return f"From the transcript, here are some moments where decisions/agreements occurred: {'; '.join(decisions[:3])}."
+        return "I didn't find any explicit key decisions recorded or discussed in this meeting."
+
+    if "topic" in q_lower or "chapter" in q_lower or "agenda" in q_lower or "outline" in q_lower:
+        if meeting.chapters:
+            chapters_str = ", ".join([f"'{c.label}' starting at {c.time}" for c in meeting.chapters])
+            return f"The meeting outlines these chapters: {chapters_str}."
+        return f"The main topics discussed were: {', '.join(meeting.topics)}."
+
+    matching_lines = []
+    for line in meeting.transcript_lines:
+        if any(word in line.text.lower() for word in q_lower.split() if len(word) > 3):
+            matching_lines.append(f"At {line.start_second}s, {line.speaker_name} said: \"{line.text}\"")
+            if len(matching_lines) >= 3:
+                break
+
+    if matching_lines:
+        return "I found some relevant discussion in the transcript:\n" + "\n".join(matching_lines)
+
+    return f"Based on the AI summary, the meeting focused on: {meeting.summary_text or 'No summary text is available.'}"
+
+
+# --- UPLOAD PARSERS ---
+def parse_vtt(content: str) -> tuple[list[TranscriptLineCreate], str]:
+    lines = content.splitlines()
+    transcript_lines = []
+    full_text_parts = []
+    time_pattern = re.compile(r"(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s+-->\s+(\d{2}):(\d{2}):(\d{2})\.(\d{3})")
+    time_pattern_short = re.compile(r"(\d{2}):(\d{2})\.(\d{3})\s+-->\s+(\d{2}):(\d{2})\.(\d{3})")
+
+    current_start_sec = 0
+    current_end_sec = 0
+    line_order = 0
+
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        match = time_pattern.search(line)
+        match_short = time_pattern_short.search(line)
+        if match:
+            h1, m1, s1, _, h2, m2, s2, _ = map(int, match.groups())
+            current_start_sec = h1 * 3600 + m1 * 60 + s1
+            current_end_sec = h2 * 3600 + m2 * 60 + s2
+            i += 1
+            text_lines = []
+            while i < len(lines) and lines[i].strip() and not time_pattern.search(lines[i]) and not time_pattern_short.search(lines[i]):
+                text_lines.append(lines[i].strip())
+                i += 1
+            text = " ".join(text_lines)
+            if text:
+                speaker = "Speaker"
+                speaker_label = "SP"
+                if ":" in text:
+                    sp_part, txt_part = text.split(":", 1)
+                    if len(sp_part) < 25 and not any(c in sp_part for c in "<>{}[]"):
+                        speaker = sp_part.strip()
+                        speaker_label = "".join([w[0] for w in speaker.split() if w])[:2].upper() or "SP"
+                        text = txt_part.strip()
+                transcript_lines.append(
+                    TranscriptLineCreate(
+                        speaker_name=speaker,
+                        speaker_label=speaker_label,
+                        start_second=current_start_sec,
+                        end_second=current_end_sec,
+                        text=text,
+                        line_order=line_order
+                    )
+                )
+                full_text_parts.append(f"{speaker}: {text}")
+                line_order += 1
+        elif match_short:
+            m1, s1, _, m2, s2, _ = map(int, match_short.groups())
+            current_start_sec = m1 * 60 + s1
+            current_end_sec = m2 * 60 + s2
+            i += 1
+            text_lines = []
+            while i < len(lines) and lines[i].strip() and not time_pattern.search(lines[i]) and not time_pattern_short.search(lines[i]):
+                text_lines.append(lines[i].strip())
+                i += 1
+            text = " ".join(text_lines)
+            if text:
+                speaker = "Speaker"
+                speaker_label = "SP"
+                if ":" in text:
+                    sp_part, txt_part = text.split(":", 1)
+                    if len(sp_part) < 25 and not any(c in sp_part for c in "<>{}[]"):
+                        speaker = sp_part.strip()
+                        speaker_label = "".join([w[0] for w in speaker.split() if w])[:2].upper() or "SP"
+                        text = txt_part.strip()
+                transcript_lines.append(
+                    TranscriptLineCreate(
+                        speaker_name=speaker,
+                        speaker_label=speaker_label,
+                        start_second=current_start_sec,
+                        end_second=current_end_sec,
+                        text=text,
+                        line_order=line_order
+                    )
+                )
+                full_text_parts.append(f"{speaker}: {text}")
+                line_order += 1
+        else:
+            i += 1
+    return transcript_lines, " ".join(full_text_parts)
+
+
+def parse_json(content: str) -> tuple[list[TranscriptLineCreate], str]:
+    data = json.loads(content)
+    transcript_lines = []
+    full_text_parts = []
+
+    items = []
+    if isinstance(data, list):
+        items = data
+    elif isinstance(data, dict):
+        if "transcript" in data:
+            items = data["transcript"]
+        elif "lines" in data:
+            items = data["lines"]
+
+    for idx, item in enumerate(items):
+        speaker = item.get("speaker") or item.get("speaker_name") or f"Speaker {item.get('speaker_id', 1)}"
+        text = item.get("text") or item.get("message") or ""
+        start_sec = item.get("start_second") or item.get("start") or 0
+        end_sec = item.get("end_second") or item.get("end") or start_sec + 5
+
+        timestamp = item.get("timestamp") or item.get("time")
+        if timestamp and not start_sec:
+            parts = timestamp.split(":")
+            if len(parts) == 2:
+                start_sec = int(parts[0]) * 60 + int(parts[1])
+            elif len(parts) == 3:
+                start_sec = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+
+        speaker_label = "".join([w[0] for w in speaker.split() if w])[:2].upper() or "SP"
+        transcript_lines.append(
+            TranscriptLineCreate(
+                speaker_name=speaker,
+                speaker_label=speaker_label,
+                start_second=start_sec,
+                end_second=end_sec,
+                text=text,
+                line_order=idx
+            )
+        )
+        full_text_parts.append(f"{speaker}: {text}")
+
+    return transcript_lines, " ".join(full_text_parts)
+
+
+def parse_txt(content: str) -> tuple[list[TranscriptLineCreate], str]:
+    lines = content.splitlines()
+    transcript_lines = []
+    full_text_parts = []
+    line_order = 0
+
+    pattern_with_time = re.compile(r"^([^:(]+)(?:\s*\(?(\d{1,2}:\d{2}(?::\d{2})?)\)?)?:\s*(.*)$")
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        match = pattern_with_time.match(line)
+        if match:
+            speaker = match.group(1).strip()
+            time_str = match.group(2)
+            text = match.group(3).strip()
+
+            start_sec = 0
+            if time_str:
+                parts = time_str.split(":")
+                if len(parts) == 2:
+                    start_sec = int(parts[0]) * 60 + int(parts[1])
+                elif len(parts) == 3:
+                    start_sec = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+
+            speaker_label = "".join([w[0] for w in speaker.split() if w])[:2].upper() or "SP"
+            transcript_lines.append(
+                TranscriptLineCreate(
+                    speaker_name=speaker,
+                    speaker_label=speaker_label,
+                    start_second=start_sec,
+                    end_second=start_sec + 5,
+                    text=text,
+                    line_order=line_order
+                )
+            )
+            full_text_parts.append(f"{speaker}: {text}")
+            line_order += 1
+        else:
+            speaker = "Speaker 1"
+            speaker_label = "S1"
+            transcript_lines.append(
+                TranscriptLineCreate(
+                    speaker_name=speaker,
+                    speaker_label=speaker_label,
+                    start_second=line_order * 5,
+                    end_second=line_order * 5 + 5,
+                    text=line,
+                    line_order=line_order
+                )
+            )
+            full_text_parts.append(f"{speaker}: {line}")
+            line_order += 1
+    return transcript_lines, " ".join(full_text_parts)
+
+
+def parse_and_create_uploaded_meeting(filename: str, content: str) -> MeetingDetail:
+    ext = filename.split(".")[-1].lower()
+    if ext == "vtt":
+        lines, raw = parse_vtt(content)
+    elif ext == "json":
+        lines, raw = parse_json(content)
+    else:
+        lines, raw = parse_txt(content)
+
+    # Automatically extract details
+    title = filename.rsplit(".", 1)[0].replace("-", " ").replace("_", " ").title()
+    participants = list(set([line.speaker_name for line in lines]))
+    
+    # Calculate duration
+    duration = 0
+    if lines:
+        duration = max(line.end_second for line in lines)
+
+    # Generate a simple mock summary
+    summary = f"Summary of {title}. The participants had a discussion on various topics."
+    bullets = [f"Discussed primary points.", f"{len(lines)} transcript segments were processed."]
+    decisions = ["Aligned on final launch milestones."]
+    
+    # Auto-generate some chapters
+    chapters = []
+    if lines:
+        step = max(1, len(lines) // 4)
+        for i in range(0, len(lines), step):
+            l = lines[i]
+            m = l.start_second // 60
+            s = l.start_second % 60
+            chapters.append(
+                ChapterCreate(
+                    label=f"Discussion: Segment {i//step + 1}",
+                    time=f"{m:02d}:{s:02d}"
+                )
+            )
+
+    payload = MeetingCreate(
+        title=title,
+        meeting_date=date.today(),
+        duration_seconds=duration,
+        participants=participants,
+        source_type="upload",
+        source_filename=filename,
+        transcript_text=raw,
+        transcript_lines=lines,
+        summary_text=summary,
+        summary_bullets=bullets,
+        key_decisions=decisions,
+        topics=["Upload", "General"],
+        tags=["Uploaded"],
+        chapters=chapters,
+        action_items=[
+            ActionItemCreate(title="Review uploaded notes", assignee_name=participants[0] if participants else "User")
+        ]
+    )
+    return create_meeting(payload)
+
+
+# --- ACTION ITEMS SERVICE ---
 def add_action_item(meeting_id: int, payload: ActionItemCreate) -> ActionItemRead:
     if get_meeting(meeting_id) is None:
         raise HTTPException(status_code=404, detail="Meeting not found")
@@ -456,7 +1079,7 @@ def update_action_item(action_item_id: int, payload: ActionItemUpdate) -> Action
             params.append(payload.assignee_name)
         if payload.due_date is not None:
             updates.append("due_date = ?")
-            params.append(payload.due_date.isoformat())
+            params.append(payload.due_date.isoformat() if payload.due_date else None)
         if payload.is_completed is not None:
             updates.append("is_completed = ?")
             params.append(int(payload.is_completed))
@@ -483,7 +1106,7 @@ def update_action_item(action_item_id: int, payload: ActionItemUpdate) -> Action
         title=updated["title"],
         description=updated["description"],
         assignee_name=updated["assignee_name"],
-        due_date=updated["due_date"],
+        due_date=date.fromisoformat(updated["due_date"]) if updated["due_date"] else None,
         is_completed=bool(updated["is_completed"]),
     )
 
@@ -506,6 +1129,7 @@ def seed_database() -> None:
             ("Default User", "default@example.com", None),
         )
 
+        # Seed with details including summary bullets, key decisions, chapters and tags
         seed_payloads = [
             MeetingCreate(
                 title="Q2 Launch Review",
@@ -540,13 +1164,37 @@ def seed_database() -> None:
                         text="I will update the copy and share the final version today.",
                         line_order=2,
                     ),
+                    TranscriptLineCreate(
+                        speaker_name="Aditi",
+                        speaker_label="AD",
+                        start_second=49,
+                        end_second=58,
+                        text="Good, let's lock the launch owner before end of day.",
+                        line_order=3,
+                    ),
                 ],
                 summary_text="The team aligned on launch readiness, timeline risks, and the final marketing checklist.",
+                summary_bullets=[
+                    "Launch readiness is on track, with engineering work already complete.",
+                    "The final checklist still needs review before sign-off.",
+                    "Marketing copy will be updated and shared today."
+                ],
+                key_decisions=[
+                    "Lock the launch owner before the end of the day today.",
+                    "Complete landing page marketing copy and publish today."
+                ],
                 action_items=[
                     ActionItemCreate(title="Finalize landing page copy", assignee_name="Meera"),
                     ActionItemCreate(title="Confirm launch owner", assignee_name="Aditi"),
                 ],
                 topics=["Launch", "Timeline", "Marketing"],
+                tags=["Launch", "Marketing", "Decision"],
+                chapters=[
+                    ChapterCreate(label="Launch readiness", time="00:08"),
+                    ChapterCreate(label="Checklist blockers", time="00:21"),
+                    ChapterCreate(label="Marketing follow-up", time="00:34"),
+                    ChapterCreate(label="Ownership decision", time="00:49"),
+                ]
             ),
             MeetingCreate(
                 title="Weekly Product Sync",
@@ -575,44 +1223,23 @@ def seed_database() -> None:
                     ),
                 ],
                 summary_text="Product and design aligned on the next sprint goals and the open UX cleanup items.",
+                summary_bullets=[
+                    "The onboarding feedback loop is the main product priority.",
+                    "The updated UX layout is ready for team review."
+                ],
+                key_decisions=[
+                    "Keep the next sprint narrow to ensure prototype shipment."
+                ],
                 action_items=[
                     ActionItemCreate(title="Refine onboarding flow", assignee_name="Nisha"),
                     ActionItemCreate(title="Collect customer feedback", assignee_name="Karan"),
                 ],
                 topics=["Product", "UX", "Sprint"],
-            ),
-            MeetingCreate(
-                title="Customer Escalation Review",
-                meeting_date=date(2026, 6, 21),
-                duration_seconds=2940,
-                participants=["Priya", "Dev", "Sana"],
-                source_type="seeded",
-                source_filename="customer-escalation.json",
-                transcript_text="Support and engineering reviewed an escalated enterprise customer issue.",
-                transcript_lines=[
-                    TranscriptLineCreate(
-                        speaker_name="Priya",
-                        speaker_label="PR",
-                        start_second=12,
-                        end_second=24,
-                        text="The customer expects a root cause summary today.",
-                        line_order=0,
-                    ),
-                    TranscriptLineCreate(
-                        speaker_name="Dev",
-                        speaker_label="DV",
-                        start_second=28,
-                        end_second=41,
-                        text="We reproduced the issue and are verifying the patch.",
-                        line_order=1,
-                    ),
-                ],
-                summary_text="The group confirmed the issue, agreed on a patch path, and set a customer follow-up plan.",
-                action_items=[
-                    ActionItemCreate(title="Draft RCA summary", assignee_name="Dev"),
-                    ActionItemCreate(title="Send customer update", assignee_name="Priya"),
-                ],
-                topics=["Support", "Escalation", "Engineering"],
+                tags=["Product", "Design", "Sprint"],
+                chapters=[
+                    ChapterCreate(label="Onboarding feedback", time="00:10"),
+                    ChapterCreate(label="Layout review", time="00:24"),
+                ]
             ),
         ]
 
@@ -634,7 +1261,10 @@ def seed_database() -> None:
             )
             meeting_id = meeting_cursor.lastrowid
             _replace_participants(connection, meeting_id, payload.participants)
-            _replace_summary(connection, meeting_id, payload.summary_text)
+            _replace_summary(connection, meeting_id, payload.summary_text, payload.summary_bullets)
+            _replace_key_decisions(connection, meeting_id, payload.key_decisions)
             _replace_topics(connection, meeting_id, payload.topics)
+            _replace_tags(connection, meeting_id, payload.tags)
+            _replace_chapters(connection, meeting_id, payload.chapters)
             _replace_transcript(connection, meeting_id, payload.transcript_text, payload.transcript_lines)
             _insert_action_items(connection, meeting_id, payload.action_items)

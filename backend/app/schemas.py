@@ -46,6 +46,58 @@ class ActionItemRead(ActionItemBase):
     id: int
 
 
+class ChapterBase(BaseModel):
+    label: str
+    time: str
+
+class ChapterCreate(ChapterBase):
+    pass
+
+class ChapterRead(ChapterBase):
+    id: int
+
+
+class CommentBase(BaseModel):
+    transcript_line_id: int
+    text: str
+
+class CommentCreate(CommentBase):
+    pass
+
+class CommentUpdate(BaseModel):
+    text: str
+
+class CommentRead(CommentBase):
+    id: int
+    meeting_id: int
+    created_at: str
+
+
+class SoundbiteBase(BaseModel):
+    title: str
+    start_second: int
+    end_second: int
+
+class SoundbiteCreate(SoundbiteBase):
+    pass
+
+class SoundbiteRead(SoundbiteBase):
+    id: int
+    meeting_id: int
+    created_at: str
+
+
+class KeyDecisionBase(BaseModel):
+    text: str
+
+class KeyDecisionCreate(KeyDecisionBase):
+    pass
+
+class KeyDecisionRead(KeyDecisionBase):
+    id: int
+    meeting_id: int
+
+
 class MeetingParticipant(BaseModel):
     name: str
 
@@ -63,8 +115,12 @@ class MeetingCreate(MeetingBase):
     transcript_text: str | None = None
     transcript_lines: list[TranscriptLineCreate] = Field(default_factory=list)
     summary_text: str | None = None
+    summary_bullets: list[str] = Field(default_factory=list)
+    key_decisions: list[str] = Field(default_factory=list)
     action_items: list[ActionItemCreate] = Field(default_factory=list)
     topics: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    chapters: list[ChapterCreate] = Field(default_factory=list)
 
 
 class MeetingUpdate(BaseModel):
@@ -77,11 +133,16 @@ class MeetingUpdate(BaseModel):
     transcript_text: str | None = None
     transcript_lines: list[TranscriptLineCreate] | None = None
     summary_text: str | None = None
+    summary_bullets: list[str] | None = None
+    key_decisions: list[str] | None = None
     topics: list[str] | None = None
+    tags: list[str] | None = None
+    chapters: list[ChapterCreate] | None = None
 
 
 class MeetingListItem(MeetingBase):
     id: int
+    tags: list[str] = Field(default_factory=list)
 
 
 class MeetingDetail(MeetingBase):
@@ -89,8 +150,15 @@ class MeetingDetail(MeetingBase):
     transcript_text: str | None = None
     transcript_lines: list[TranscriptLineRead] = Field(default_factory=list)
     summary_text: str | None = None
+    summary_bullets: list[str] = Field(default_factory=list)
+    key_decisions: list[str] = Field(default_factory=list)
     action_items: list[ActionItemRead] = Field(default_factory=list)
     topics: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    chapters: list[ChapterRead] = Field(default_factory=list)
+    comments: list[CommentRead] = Field(default_factory=list)
+    highlights: list[int] = Field(default_factory=list)
+    soundbites: list[SoundbiteRead] = Field(default_factory=list)
 
 
 class MeetingListResponse(BaseModel):

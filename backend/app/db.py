@@ -68,6 +68,14 @@ CREATE TABLE IF NOT EXISTS summaries (
     FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS key_decisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS action_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     meeting_id INTEGER NOT NULL,
@@ -89,6 +97,15 @@ CREATE TABLE IF NOT EXISTS topics (
     FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS chapters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    time TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS tags (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE
@@ -102,9 +119,40 @@ CREATE TABLE IF NOT EXISTS meeting_tags (
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL,
+    transcript_line_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+    FOREIGN KEY (transcript_line_id) REFERENCES transcript_lines(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS highlights (
+    meeting_id INTEGER NOT NULL,
+    transcript_line_id INTEGER NOT NULL,
+    PRIMARY KEY (meeting_id, transcript_line_id),
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+    FOREIGN KEY (transcript_line_id) REFERENCES transcript_lines(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS soundbites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    start_second INTEGER NOT NULL,
+    end_second INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_meetings_date ON meetings(meeting_date);
 CREATE INDEX IF NOT EXISTS idx_participants_name ON meeting_participants(name);
 CREATE INDEX IF NOT EXISTS idx_action_items_meeting ON action_items(meeting_id);
+CREATE INDEX IF NOT EXISTS idx_comments_line ON comments(transcript_line_id);
+CREATE INDEX IF NOT EXISTS idx_highlights_line ON highlights(transcript_line_id);
+CREATE INDEX IF NOT EXISTS idx_soundbites_meeting ON soundbites(meeting_id);
 """
 
 

@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Fireflies Clone",
-  description: "A Fireflies.ai style meeting notes and transcript workspace.",
+  title: "Fireflies Clone – Meeting Intelligence",
+  description: "A Fireflies.ai style meeting notes, transcript, and AI workspace.",
 };
 
 export default function RootLayout({
@@ -14,7 +14,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body style={{ fontFamily: "'Inter', sans-serif" }}>{children}</body>
     </html>
   );
 }
