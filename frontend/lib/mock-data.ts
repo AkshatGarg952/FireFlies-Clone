@@ -21,6 +21,7 @@ export const meetings: MeetingPreview[] = [
       { id: "m1-a3", title: "Review launch deck", assignee: "Rahul", completed: true }
     ],
     topics: ["Launch", "Timeline", "Marketing"],
+    tags: ["Launch", "Marketing", "Decision"],
     chapters: [
       { label: "Launch readiness", time: "00:08" },
       { label: "Checklist blockers", time: "00:21" },
@@ -55,6 +56,7 @@ export const meetings: MeetingPreview[] = [
       { id: "m2-a3", title: "Ship updated prototype", assignee: "Karan", completed: false }
     ],
     topics: ["Product", "UX", "Sprint"],
+    tags: ["Product", "Design", "Sprint"],
     chapters: [
       { label: "Onboarding feedback", time: "00:10" },
       { label: "Layout review", time: "00:24" },

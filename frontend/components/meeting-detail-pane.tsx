@@ -7,6 +7,7 @@ import { NotesPanel } from "./notes-panel";
 
 type MeetingDetailPaneProps = {
   meeting: MeetingPreview;
+  onNotify?: (message: string) => void;
 };
 
 function formatTime(totalSeconds: number) {
@@ -54,16 +55,20 @@ function highlightText(text: string, query: string) {
   return parts.length ? parts : text;
 }
 
-export function MeetingDetailPane({ meeting }: MeetingDetailPaneProps) {
+export function MeetingDetailPane({ meeting, onNotify }: MeetingDetailPaneProps) {
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [highlightedLineIds, setHighlightedLineIds] = useState<string[]>([]);
+  const [question, setQuestion] = useState("");
   const lineRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   useEffect(() => {
     setCurrentTime(0);
     setIsPlaying(false);
     setSearchQuery("");
+    setHighlightedLineIds([]);
+    setQuestion("");
   }, [meeting.id]);
 
   useEffect(() => {
@@ -127,6 +132,34 @@ export function MeetingDetailPane({ meeting }: MeetingDetailPaneProps) {
     setIsPlaying((value) => !value);
   };
 
+  const exportMeeting = (format: "markdown" | "text") => {
+    const transcript = meeting.transcript.map((line) => `${line.timestamp} ${line.speaker}: ${line.text}`).join("\n");
+    const tasks = meeting.actionItems.map((item) => `- [${item.completed ? "x" : " "}] ${item.title}${item.assignee ? ` (${item.assignee})` : ""}`).join("\n");
+    const content =
+      format === "markdown"
+        ? `# ${meeting.title}\n\n## Summary\n${meeting.summary}\n\n## Action Items\n${tasks}\n\n## Transcript\n${transcript}\n`
+        : `${meeting.title}\n\nSummary\n${meeting.summary}\n\nAction Items\n${tasks}\n\nTranscript\n${transcript}\n`;
+    const blob = new Blob([content], { type: format === "markdown" ? "text/markdown" : "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${meeting.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.${format === "markdown" ? "md" : "txt"}`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    onNotify?.(`Exported ${format === "markdown" ? "Markdown" : "TXT"} notes`);
+  };
+
+  const toggleHighlight = (lineId: string) => {
+    setHighlightedLineIds((current) => {
+      if (current.includes(lineId)) {
+        onNotify?.("Removed transcript highlight");
+        return current.filter((id) => id !== lineId);
+      }
+      onNotify?.("Added transcript highlight");
+      return [...current, lineId];
+    });
+  };
+
   return (
     <section className="detail-panel meeting-detail">
       <div className="panel-header">
@@ -138,11 +171,14 @@ export function MeetingDetailPane({ meeting }: MeetingDetailPaneProps) {
           </p>
         </div>
         <div className="detail-actions">
-          <button className="ghost-button" type="button">
+          <button className="ghost-button" type="button" onClick={() => onNotify?.("Share placeholder opened")}>
             Share
           </button>
-          <button className="ghost-button" type="button">
-            Export
+          <button className="ghost-button" type="button" onClick={() => exportMeeting("markdown")}>
+            Export MD
+          </button>
+          <button className="ghost-button" type="button" onClick={() => exportMeeting("text")}>
+            Export TXT
           </button>
         </div>
       </div>
@@ -215,6 +251,7 @@ export function MeetingDetailPane({ meeting }: MeetingDetailPaneProps) {
             {meeting.transcript.map((line) => {
               const isActive = activeLine?.id === line.id;
               const isHighlighted = matchesTranscript(line, searchQuery);
+              const isSavedHighlight = highlightedLineIds.includes(line.id);
 
               return (
                 <button
@@ -222,14 +259,34 @@ export function MeetingDetailPane({ meeting }: MeetingDetailPaneProps) {
                   ref={(element) => {
                     lineRefs.current[line.id] = element;
                   }}
-                  className={`transcript-button${isActive ? " active" : ""}${searchQuery && !isHighlighted ? " dimmed" : ""}`}
+                  className={`transcript-button${isActive ? " active" : ""}${isSavedHighlight ? " saved" : ""}${searchQuery && !isHighlighted ? " dimmed" : ""}`}
                   type="button"
                   onClick={() => seekTo(line.startSecond)}
                 >
                   <div className="transcript-line">
                     <div className="transcript-line-head">
                       <span className="speaker">{line.speaker}</span>
-                      <span className="timestamp">{line.timestamp}</span>
+                      <span className="timestamp">
+                        {line.timestamp}
+                        <span
+                          className="line-action"
+                          role="button"
+                          tabIndex={0}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleHighlight(line.id);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              toggleHighlight(line.id);
+                            }
+                          }}
+                        >
+                          {isSavedHighlight ? "Saved" : "Highlight"}
+                        </span>
+                      </span>
                     </div>
                     <p>{highlightText(line.text, searchQuery)}</p>
                   </div>
@@ -241,6 +298,33 @@ export function MeetingDetailPane({ meeting }: MeetingDetailPaneProps) {
 
         <NotesPanel meeting={meeting} />
       </div>
+
+      <section className="ask-panel">
+        <div>
+          <p className="eyebrow">Ask this meeting</p>
+          <h2>Meeting Q&A</h2>
+        </div>
+        <div className="ask-row">
+          <input
+            type="text"
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            placeholder="Ask about blockers, decisions, or owners"
+          />
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => onNotify?.(question ? "Generated a seeded answer preview" : "Type a question first")}
+          >
+            Ask
+          </button>
+        </div>
+        {question ? (
+          <p className="seeded-answer">
+            Based on the seeded notes, the most relevant answer is in the summary, action items, and highlighted transcript moments.
+          </p>
+        ) : null}
+      </section>
     </section>
   );
 }

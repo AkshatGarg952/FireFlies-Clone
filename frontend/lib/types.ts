@@ -22,6 +22,7 @@ export type MeetingPreview = {
     completed: boolean;
   }>;
   topics: string[];
+  tags: string[];
   chapters: Array<{
     label: string;
     time: string;

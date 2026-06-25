@@ -22,7 +22,9 @@ function matchesSearch(meeting: MeetingPreview, query: string) {
   return (
     meeting.title.toLowerCase().includes(needle) ||
     meeting.participants.some((person) => person.toLowerCase().includes(needle)) ||
-    meeting.topics.some((topic) => topic.toLowerCase().includes(needle))
+    meeting.topics.some((topic) => topic.toLowerCase().includes(needle)) ||
+    meeting.tags.some((tag) => tag.toLowerCase().includes(needle)) ||
+    meeting.transcript.some((line) => line.text.toLowerCase().includes(needle))
   );
 }
 
@@ -45,18 +47,27 @@ function matchesFilter(meeting: MeetingPreview, filter: string) {
 export function Dashboard() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("all");
   const [sortMode, setSortMode] = useState<SortMode>("recent");
   const [selectedId, setSelectedId] = useState(seedMeetings[0]?.id ?? "");
+  const [toast, setToast] = useState("");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  const allTags = useMemo(() => {
+    return Array.from(new Set(seedMeetings.flatMap((meeting) => meeting.tags))).sort();
+  }, []);
 
   const visibleMeetings = useMemo(() => {
     return [...seedMeetings]
       .filter((meeting) => matchesSearch(meeting, query))
       .filter((meeting) => matchesFilter(meeting, filter))
+      .filter((meeting) => tagFilter === "all" || meeting.tags.includes(tagFilter))
       .sort((left, right) => {
         const diff = parseMeetingDate(left) - parseMeetingDate(right);
         return sortMode === "recent" ? -diff : diff;
       });
-  }, [filter, query, sortMode]);
+  }, [filter, query, sortMode, tagFilter]);
 
   const selectedMeeting = visibleMeetings.find((meeting) => meeting.id === selectedId) ?? visibleMeetings[0] ?? null;
 
@@ -66,6 +77,11 @@ export function Dashboard() {
     { label: "Action items", value: seedMeetings.reduce((total, meeting) => total + meeting.actionItems.length, 0) },
   ];
 
+  const showToast = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 2600);
+  };
+
   return (
     <main className="workspace-shell">
       <header className="topbar">
@@ -74,7 +90,7 @@ export function Dashboard() {
           <h1>Meetings</h1>
         </div>
         <div className="topbar-actions">
-          <button className="ghost-button" type="button">
+          <button className="ghost-button" type="button" onClick={() => setIsSettingsOpen(true)}>
             Settings
           </button>
           <div className="profile-pill">
@@ -103,18 +119,18 @@ export function Dashboard() {
               <h2>Meeting library</h2>
               <p className="muted">{visibleMeetings.length} meetings found</p>
             </div>
-            <button className="primary-button" type="button">
+            <button className="primary-button" type="button" onClick={() => setIsCreateOpen(true)}>
               New meeting
             </button>
           </div>
 
           <label className="search-field">
-            <span>Search meetings</span>
+            <span>Global search</span>
             <input
               type="text"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search by title, participant, topic"
+              placeholder="Search title, people, tags, transcript"
             />
           </label>
 
@@ -144,6 +160,17 @@ export function Dashboard() {
             </button>
           </div>
 
+          <div className="tag-strip">
+            <button type="button" className={`tag-filter${tagFilter === "all" ? " active" : ""}`} onClick={() => setTagFilter("all")}>
+              All tags
+            </button>
+            {allTags.map((tag) => (
+              <button key={tag} type="button" className={`tag-filter${tagFilter === tag ? " active" : ""}`} onClick={() => setTagFilter(tag)}>
+                {tag}
+              </button>
+            ))}
+          </div>
+
           <div className="meeting-list">
             {visibleMeetings.map((meeting) => (
               <button key={meeting.id} className="meeting-button" type="button" onClick={() => setSelectedId(meeting.id)}>
@@ -161,7 +188,7 @@ export function Dashboard() {
         </aside>
 
         {selectedMeeting ? (
-          <MeetingDetailPane meeting={selectedMeeting} />
+          <MeetingDetailPane meeting={selectedMeeting} onNotify={showToast} />
         ) : (
           <section className="detail-panel empty-detail">
             <strong>No meeting selected</strong>
@@ -169,6 +196,82 @@ export function Dashboard() {
           </section>
         )}
       </section>
+
+      {toast ? <div className="toast">{toast}</div> : null}
+
+      {isSettingsOpen ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setIsSettingsOpen(false)}>
+          <section className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">Workspace</p>
+                <h2 id="settings-title">Settings</h2>
+              </div>
+              <button className="ghost-button" type="button" onClick={() => setIsSettingsOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div className="placeholder-grid">
+              <div className="placeholder-tile">
+                <strong>Live meeting bot</strong>
+                <p>Coming soon</p>
+              </div>
+              <div className="placeholder-tile">
+                <strong>Integrations</strong>
+                <p>Zoom, Meet, Calendar, and CRM placeholders</p>
+              </div>
+              <div className="placeholder-tile">
+                <strong>Team sharing</strong>
+                <p>Workspace collaboration placeholder</p>
+              </div>
+              <div className="placeholder-tile">
+                <strong>Authentication</strong>
+                <p>Using a default logged-in user for this assignment</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {isCreateOpen ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setIsCreateOpen(false)}>
+          <section className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="create-title" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">Create</p>
+                <h2 id="create-title">New meeting</h2>
+              </div>
+              <button className="ghost-button" type="button" onClick={() => setIsCreateOpen(false)}>
+                Close
+              </button>
+            </div>
+            <div className="form-grid">
+              <label>
+                <span>Title</span>
+                <input value="Customer onboarding review" readOnly />
+              </label>
+              <label>
+                <span>Participants</span>
+                <input value="Aditi, Rahul, Meera" readOnly />
+              </label>
+              <label className="wide-field">
+                <span>Transcript paste area</span>
+                <textarea value="Transcript upload and paste flow is represented here for the MVP." readOnly />
+              </label>
+            </div>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => {
+                setIsCreateOpen(false);
+                showToast("Meeting creation placeholder opened successfully");
+              }}
+            >
+              Save draft
+            </button>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }
