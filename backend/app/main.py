@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.health import router as health_router
 from app.api.meetings import router as meetings_router
+from app.services.meetings import bootstrap_database
 
 app = FastAPI(title="Fireflies Clone API", version="0.1.0")
 
@@ -21,3 +22,8 @@ app.include_router(meetings_router, prefix="/api", tags=["meetings"])
 @app.get("/")
 def root() -> dict[str, str]:
     return {"message": "Fireflies Clone API is running"}
+
+
+@app.on_event("startup")
+def startup_event() -> None:
+    bootstrap_database()
